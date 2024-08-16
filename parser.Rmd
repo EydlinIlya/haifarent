@@ -13,6 +13,8 @@ library(tidygeocoder) # Geocoding
 
 ```{r, connect_to_mailbox}
 
+readRenviron("./.Renviron")
+
 con <- configure_imap(
   url=Sys.getenv("MAIL_SERVER"),
   username=Sys.getenv("MAIL_USERNAME"),
@@ -109,8 +111,8 @@ decode_quoted_printable_text <- function (qp_encoded) {
 
 # folder facebook posts, folder to copy posts once they processed, initial date to search the posts dd-Mmm-yyyy  
 
-mail_folder <- "haifa_rent"         
-mail_folder_log <- "haifa_rent_log"
+mail_folder <- Sys.getenv("MAIL_FOLDER")        
+mail_folder_log <- Sys.getenv("MAIL_FOLDER_OLD")
 date_start <- "07-Aug-2024"
 
 # regex to extract post url post text, and  poster name 
@@ -122,8 +124,12 @@ regex_text <- "!([\\s\\S]*?)\r\n\r\n\r\n\r\n====================================
 regex_name <- "опубликовал[а]{0,1}.(.*?)</a>[\\s\\S]{1,2}создал"
 regex_name2 <- "([^>]+$)"
 
+df_cities = read_csv("./cities.csv")
+
+cities <- df_cities$city
+default_city <- df_cities %>% filter(default == 1) %>% pull(city) %>% .[[1]]
 # gemini promt
-str_promt <- "Take this facebook post in hebrew. extract the following data: 1) street and city 2)rent per month return the following json: {street: <Value1> city: <Value2> rent: <Value3>} replace <Value1> with street in hebrew or null ({street: null city: <Value2> rent: <Value3>}) if not mentioned, <Value2> with city, if it's not mentioned set חיפה by default and <Value3> with rent in nis or null ({{street: <Value1> city: <Value2> rent: null}})  if not mentioned. Dont use the date with: for example 10.9 means date, not rent, keep the value equall null. If the adress contains any special characters just omit them "
+str_promt <- paste("Take this facebook post in hebrew. extract the following data: 1) street and city 2)rent per month return the following json: {street: <Value1> city: <Value2> rent: <Value3>} replace <Value1> with street in hebrew or null ({street: null city: <Value2> rent: <Value3>}) if not mentioned, <Value2> with city, if it's not mentioned set", default_city,  "by default and <Value3> with rent in nis or null ({{street: <Value1> city: <Value2> rent: null}})  if not mentioned. Dont use the date with: for example 10.9 means date, not rent, keep the value equall null. If the adress contains any special characters just omit them ")
 
 
 con$select_folder(name = mail_folder)
@@ -215,16 +221,6 @@ df_geo_reverse <- df_geo %>%
   select(Date, url, Rent, rent_num, lat, long, address, poster, city_filter)
 
 
-  
-cities <- c("Haifa",
-            "Nesher",
-            "Tirat Karmel",
-            "Kiryat Motzkin",
-            "Kiryat Bialik",
-            "Kiryat Yam",
-            "Kiryat Ata",
-            "Isfiya",
-            "Daliyat Al-Karmel")
 
 df_geo_reverse<- df_geo_reverse %>% 
   filter(city_filter %in% cities)
