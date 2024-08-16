@@ -131,9 +131,9 @@ default_city <- df_cities %>% filter(default == 1) %>% pull(city) %>% .[[1]]
 # gemini promt
 str_promt <- paste("Take this facebook post in hebrew. extract the following data: 1) street and city 2)rent per month return the following json: {street: <Value1> city: <Value2> rent: <Value3>} replace <Value1> with street in hebrew or null ({street: null city: <Value2> rent: <Value3>}) if not mentioned, <Value2> with city, if it's not mentioned set", default_city,  "by default and <Value3> with rent in nis or null ({{street: <Value1> city: <Value2> rent: null}})  if not mentioned. Dont use the date with: for example 10.9 means date, not rent, keep the value equall null. If the adress contains any special characters just omit them ")
 
-
+con$reset_timeout_ms(30000)
 con$select_folder(name = mail_folder)
-
+con$reset_verbose(FALSE)
 messages <- con$search_since(date_char = date_start, use_uid = TRUE) 
 
 text <-  con$fetch_text(messages, use_uid = TRUE) %>% 
@@ -230,7 +230,7 @@ df_geo_reverse<- df_geo_reverse %>%
 ```{r, write_file}
 
 if (file.exists("geo.csv")) {
-  df_geo_wtite <- read_csv("geo.csv") %>% 
+  df_geo_write <- read_csv("geo.csv") %>% 
     mutate(Date = as.Date(Date)) %>% 
     rbind(df_geo_reverse) 
 } else {
