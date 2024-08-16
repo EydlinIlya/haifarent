@@ -112,7 +112,7 @@ decode_quoted_printable_text <- function (qp_encoded) {
 # folder facebook posts, folder to copy posts once they processed, initial date to search the posts dd-Mmm-yyyy  
 
 mail_folder <- Sys.getenv("MAIL_FOLDER")        
-mail_folder_log <- Sys.getenv("MAIL_FOLDER_OLD")
+mail_folder_log <- Sys.getenv("MAIL_FOLDER_LOG")
 date_start <- "07-Aug-2024"
 
 # regex to extract post url post text, and  poster name 
@@ -197,7 +197,8 @@ df_messages_responses <- df_messages_responses %>%
 
 df_geo <- df_messages_responses %>%
   mutate(address = paste(street, city, sep = ", ")) %>% 
-  geocode(address, method = "google")
+  geocode(address, method = "google") %>% 
+  filter(!is.na(lat))
 
 #For reverse geocoding we use OSM, as it gives more consistent street and city results
 
