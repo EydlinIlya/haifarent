@@ -1,0 +1,89 @@
+---
+title: "FaceShtime"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    theme: "cosmo"
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library(crosstalk)
+library(leaflet)
+library(DT)
+library(flexdashboard)
+library(dplyr)
+df_render <- read.csv("geo.csv") %>% rowwise() %>%  mutate(lat = lat +runif(1, min=-0.0002, max=0.0002),
+                                            long = long +runif(1, min=-0.0002, max=0.0002))
+df_render$Date <- as.Date(df_render$Date)
+df_render$info <- paste(df_render$Rent, df_render$url)
+df_render <- df_render %>% arrange(desc(Date))
+
+```
+
+Sidebar {.sidebar}
+=======================================================================
+
+
+This is an demo for the app **FaceShtime**. The app collects data about apartments for rent in Haifa from several facebook public groups, transforms information into structural format using Gemini API, and geocoding apartments using Google Maps API.
+
+
+```{r}
+selectInput("city", "City", multiple = T, choices = unique(df_render$city_filter), selected = unique(df_render$city_filter)) 
+sliderInput("rent", "Monthly Rent",
+            min = 0, max = max(df_render$rent_num), value = c(0, max(df_render$rent_num)), step = 100)
+checkboxInput("norent", "Show property without a rent", value = FALSE, width = NULL)
+
+dateRangeInput("date", "Date posted",
+            start = min(df_render$Date), end = max(df_render$Date))
+
+df_render_reactive <- reactive({
+  req(input$rent)
+  req(input$date)
+  req(input$city)
+df_render %>%
+    mutate(checker = input$norent) %>% 
+    filter(((Rent >= input$rent[1] & Rent <= input$rent[2]) |  (checker  & is.na(Rent))) & Date >= input$date[1] & Date <= input$date[2] & city_filter %in% input$city)
+})
+
+df_crtk <- SharedData$new(df_render_reactive)
+
+```
+
+Dashboard
+=======================================================================
+
+
+Row
+-----------------------------------------------------------------------
+
+### Map {data-width=340}
+
+
+```{r}
+renderLeaflet({leaflet(df_crtk) %>%
+  addTiles() %>%  # Add default OpenStreetMap tiles
+  addCircleMarkers(
+    ~long, ~lat,
+    popup = ~info,
+    radius = 5,
+    fillOpacity = 0.8,
+    color = "navy",
+    fillColor = "dodgerblue"
+    )
+  })
+
+```
+
+###  Table {data-width=340}
+
+```{r}
+renderDT(datatable(df_crtk, selection = "single", escape = FALSE, extensions="Scroller", style="bootstrap", class="compact", width="100%",
+     options=list(columnDefs = list(list(visible=FALSE,
+                                       targets=c(4,5,6,9,10,11)
+                                       )))), 
+     server = FALSE)
+
+```

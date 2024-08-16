@@ -1,0 +1,255 @@
+---
+title: "R Notebook"
+output: html_notebook
+--- 
+
+```{r, import_libs}
+library(tidyverse)    # data manipulation
+library(mRpostman)    # mailbox operations
+library(jsonlite)     # json manipulations
+library(gemini.R)     # Google Gemini API client
+library(tidygeocoder) # Geocoding
+```
+
+```{r, connect_to_mailbox}
+
+con <- configure_imap(
+  url=Sys.getenv("MAIL_SERVER"),
+  username=Sys.getenv("MAIL_USERNAME"),
+  password=Sys.getenv("MAIL_PASSWORD"),
+  verbose = FALSE)
+```
+
+```{r, mail_decoder}
+decode_quoted_printable_text <- function (qp_encoded) {
+  # adapted from @hbrmstr original function:
+  # https://stackoverflow.com/questions/40976213/decoding-quoted-printable-string-in-r
+  # Sane solution is elsewhere
+
+  qp_before <- c("=00", "=01", "=02", "=03", "=04", "=05", "=06", "=07", "=08", "=09", "=0A",
+                 "=0B", "=0C", "=0D", "=0E", "=0F", "=10", "=11", "=12", "=13", "=14", "=15",
+                 "=16", "=17", "=18", "=19", "=1A", "=1B", "=1C", "=1D", "=1E", "=1F", "=20",
+                 "=21", "=22", "=23", "=24", "=25", "=26", "=27", "=28", "=29", "=2A", "=2B",
+                 "=2C", "=2D", "=2E", "=2F", "=30", "=31", "=32", "=33", "=34", "=35", "=36",
+                 "=37", "=38", "=39", "=3A", "=3B", "=3C", "=3D", "=3E", "=3F", "=40",
+                 "=41",
+                 "=42", "=43", "=44", "=45", "=46", "=47", "=48", "=49", "=4A", "=4B", "=4C",
+                 "=4D", "=4E", "=4F", "=50", "=51", "=52", "=53", "=54", "=55", "=56", "=57",
+                 "=58", "=59", "=5A",
+                 "=5B", "=5C", "=5D", "=5E", "=5F", "=60", "=61", "=62",
+                 "=63", "=64", "=65", "=66", "=67", "=68", "=69", "=6A", "=6B", "=6C", "=6D",
+                 "=6E", "=6F", "=70", "=71", "=72", "=73", "=74", "=75", "=76", "=77", "=78",
+                 "=79", "=7A", "=7B", "=7C", "=7D", "=7E",
+                 "=7F", "=80", "=81", "=82", "=83",
+                 "=84", "=85", "=86", "=87", "=88", "=89", "=8A", "=8B", "=8C", "=8D", "=8E",
+                 "=8F", "=90", "=91", "=92", "=93", "=94", "=95", "=96", "=97", "=98", "=99",
+                 "=9A", "=9B", "=9C", "=9D", "=9E", "=9F", "=A0", "=A1", "=A2", "=A3", "=A4",
+                 "=A5", "=A6", "=A7", "=A8", "=A9", "=AA", "=AB", "=AC", "=AD", "=AE", "=AF",
+                 "=B0", "=B1", "=B2", "=B3", "=B4", "=B5", "=B6", "=B7", "=B8", "=B9", "=BA",
+                 "=BB", "=BC", "=BD", "=BE", "=BF", "=C0", "=C1", "=C2", "=C3", "=C4", "=C5",
+                 "=C6", "=C7", "=C8", "=C9", "=CA", "=CB", "=CC", "=CD", "=CE", "=CF", "=D0",
+                 "=D1", "=D2", "=D3", "=D4", "=D5", "=D6", "=D7", "=D8", "=D9", "=DA", "=DB",
+                 "=DC", "=DD", "=DE", "=DF", "=E0", "=E1", "=E2", "=E3", "=E4", "=E5", "=E6",
+                 "=E7", "=E8", "=E9", "=EA", "=EB", "=EC", "=ED", "=EE", "=EF", "=F0", "=F1",
+                 "=F2", "=F3", "=F4", "=F5", "=F6", "=F7", "=F8", "=F9", "=FA", "=FB", "=FC",
+                 "=FD", "=FE", "=FF", "=\r\n")
+
+  qp_after <- c("", "\001", "\002", "\003", "\004", "\005", "\006", "\a", "\b", "\t", "\n",
+                "\v", "\f", "\r", "\016", "\017", "\020", "\021", "\022", "\023", "\024", "\025",
+                "\026", "\027", "\030", "\031", "\032", "\033", "\034", "\035", "\036", "\037", " ",
+                "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+",
+                ",", "-", ".", "/", "0", "1", "2", "3", "4", "5", "6",
+                "7", "8", "9", ":", ";", "<", "=", ">", "?", "@",
+                "A",
+                "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+                "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W",
+                "X", "Y", "Z",
+                "[", "\\", "]", "^", "_", "`", "a", "b",
+                "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+                "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x",
+                "y", "z", "{", "|", "}", "~",
+                "\177", "\x80", "\x81", "\x82",
+                "\x83", "\x84", "\x85", "\x86", "\x87", "\x88", "\x89", "\x8a", "\x8b",
+                "\x8c", "\x8d", "\x8e", "\x8f", "\x90", "\x91", "\x92", "\x93", "\x94",
+                "\x95", "\x96", "\x97", "\x98", "\x99", "\x9a", "\x9b", "\x9c", "\x9d",
+                "\x9e", "\x9f", "\xa0", "\xa1", "\xa2", "\xa3", "\xa4", "\xa5", "\xa6",
+                "\xa7", "\xa8", "\xa9", "\xaa", "\xab", "\xac", "\xad", "\xae", "\xaf",
+                "\xb0", "\xb1", "\xb2", "\xb3", "\xb4", "\xb5", "\xb6", "\xb7", "\xb8",
+                "\xb9", "\xba", "\xbb", "\xbc", "\xbd", "\xbe", "\xbf", "\xc0", "\xc1",
+                "\xc2", "\xc3", "\xc4", "\xc5", "\xc6", "\xc7", "\xc8", "\xc9", "\xca",
+                "\xcb", "\xcc", "\xcd", "\xce", "\xcf", "\xd0", "\xd1", "\xd2", "\xd3",
+                "\xd4", "\xd5", "\xd6", "\xd7", "\xd8", "\xd9", "\xda", "\xdb", "\xdc",
+                "\xdd", "\xde", "\xdf", "\xe0", "\xe1", "\xe2", "\xe3", "\xe4", "\xe5",
+                "\xe6", "\xe7", "\xe8", "\xe9", "\xea", "\xeb", "\xec", "\xed", "\xee",
+                "\xef", "\xf0", "\xf1", "\xf2", "\xf3", "\xf4", "\xf5", "\xf6", "\xf7",
+                "\xf8", "\xf9", "\xfa", "\xfb", "\xfc", "\xfd", "\xfe", "\xff", "")
+
+
+  qp_encoded_split <- unlist(strsplit(qp_encoded, " "))
+  # using split will be important when trying to decode a sentence with capital letters
+
+  decoded_string <- stringi::stri_replace_all_fixed(qp_encoded_split, qp_before, qp_after, vectorize_all=FALSE)
+
+  tryCatch({ # sometimes it works with one backslash, sometimes it doesn't
+    Encoding(decoded_string[grepl(pattern = "[\x80-\xff]", x = decoded_string)]) <- "latin1"
+  }, error = function(e) {
+    Encoding(decoded_string[grepl(pattern = "[\\x80-\\xff]", x = decoded_string)]) <- "latin1"
+
+  })
+
+  decoded_string <- paste0(decoded_string, collapse = " ")
+
+  return(decoded_string)
+
+}
+```
+
+```{r, read_mail}
+
+
+# folder facebook posts, folder to copy posts once they processed, initial date to search the posts dd-Mmm-yyyy  
+
+mail_folder <- "haifa_rent"         
+mail_folder_log <- "haifa_rent_log"
+date_start <- "07-Aug-2024"
+
+# regex to extract post url post text, and  poster name 
+# IMPORTANT: that changes from mail client to mail client, i.e. different for outlook and gmail
+# mail encoding is a mess. It's not UTF-8 as it claims and i cant read it as html. Very dirty regex for parsing HTML therefore.
+# BEWARE. COULDNT BE UNSEEN
+regex_url <-"=Смотреть на Facebook\r\n(.*?)\r\n\r\n=="
+regex_text <- "Здравствуйте, Ilya!([\\s\\S]*?)\r\n\r\n\r\n\r\n=======================================Сообщение отправлено на адрес"
+regex_name <- "опубликовал[а]{0,1}.(.*?)</a>[\\s\\S]{1,2}создал"
+regex_name2 <- "([^>]+$)"
+
+# gemini promt
+str_promt <- "Take this facebook post in hebrew. extract the following data: 1) street and city 2)rent per month return the following json: {street: <Value1> city: <Value2> rent: <Value3>} replace <Value1> with street in hebrew or null ({street: null city: <Value2> rent: <Value3>}) if not mentioned, <Value2> with city, if it's not mentioned set חיפה by default and <Value3> with rent in nis or null ({{street: <Value1> city: <Value2> rent: null}})  if not mentioned. Dont use the date with: for example 10.9 means date, not rent, keep the value equall null. If the adress contains any special characters just omit them "
+
+
+con$select_folder(name = mail_folder)
+
+messages <- con$search_since(date_char = date_start, use_uid = TRUE) 
+
+text <-  con$fetch_text(messages, use_uid = TRUE) %>% 
+  map(decode_quoted_printable_text)
+metadata <- con$fetch_metadata(messages, use_uid = TRUE , attribute = c("INTERNALDATE"))
+
+date_vec <- unlist(metadata)
+text_vec <- unlist(text)
+df_messages <- tibble(text = text_vec, date = date_vec) %>% 
+  rowwise() %>% 
+  mutate(url = str_match(text, regex_url)[,2],
+         url = str_extract(url, ".*(?=&aref)"), #remove personal token from the url
+         name = str_match(text, regex_name)[ ,2], 
+         name = str_match(name, regex_name2)[ ,2], 
+         text = str_match(text, regex_text)[ ,2]) %>% 
+  filter(!is.na(text) & text!="" & !is.na(name)) %>% 
+  mutate(promt = paste(str_promt, text),
+         Date = as.Date(substr(date, 15, 25), format = "%d-%b-%Y")) %>% 
+  group_by(url) %>% 
+  arrange(desc(Date)) %>% 
+  slice(1)  # remove duplicates
+  
+con$move_msg(messages, use_uid = TRUE, to_folder = mail_folder_log)
+
+
+```
+
+
+
+
+```{r, generate_responses}
+
+setAPI(Sys.getenv("GEMINI_KEY"))
+
+
+gem_response <- function(promt) {
+  Sys.sleep(6) # free quota allows 10 requests/min
+  response <- gemini(promt)
+}
+
+
+df_messages_responses <- df_messages %>% 
+  rowwise() %>% 
+  mutate(response = gem_response(promt)) %>% 
+  mutate(json = str_match(response, "```json([\\s\\S]*?)```")[,2]) %>% #extract json from response 
+  filter(!is.na(json)) %>% 
+  mutate(json = list(try(fromJSON(json), silent = TRUE))) #try to convert json into r list (check if json is valid)
+
+df_messages_responses <- df_messages_responses %>% 
+  filter(is_list(json)) %>% 
+  unnest_wider(json) %>% 
+  select(Date, url, street, city, rent, name) %>% 
+  mutate(street=as.character(street),
+         city=as.character(city),
+         rent=as.character(rent)) %>% 
+  filter(!is.na(street))
+
+```
+```{r, geocode}
+
+
+df_geo <- df_messages_responses %>%
+  mutate(address = paste(street, city, sep = ", ")) %>% 
+  geocode(address, method = "google")
+
+#For reverse geocoding we use OSM, as it gives more consistent street and city results
+
+df_geo_reverse <- df_geo %>% 
+  rename(poster = name, city_raw = city, street_raw = street) %>% 
+  reverse_geocode(lat = lat, 
+                  long = long, 
+                  address = "address_full",
+                  method = "osm", 
+                  custom_query=list(zoom=17,
+                                    layer= "address",
+                                    `accept-language`="en"),
+                  full_results = TRUE) %>% 
+  mutate(city = coalesce(city, town),
+         city_filter = city,
+          url = paste0('<a target="_blank" rel="noopener noreferrer" href ="', url, '">', "link", "</a>"),
+    Rent = str_remove(rent, fixed(",")),
+           rent_num = if_else(is.na(as.numeric(Rent)), 0, as.numeric(Rent)),
+           Rent = if_else(rent_num > 0, rent_num, NA_real_)) %>% 
+  unite(col = "address", road, suburb, city, na.rm = T, sep = ", ")%>% 
+  select(Date, url, Rent, rent_num, lat, long, address, poster, city_filter)
+
+
+  
+cities <- c("Haifa",
+            "Nesher",
+            "Tirat Karmel",
+            "Kiryat Motzkin",
+            "Kiryat Bialik",
+            "Kiryat Yam",
+            "Kiryat Ata",
+            "Isfiya",
+            "Daliyat Al-Karmel")
+
+df_geo_reverse<- df_geo_reverse %>% 
+  filter(city_filter %in% cities)
+
+```
+```{r, write_file}
+
+if (file.exists("geo.csv")) {
+  df_geo_wtite <- read_csv("geo.csv") %>% 
+    mutate(Date = as.Date(Date)) %>% 
+    rbind(df_geo_reverse) 
+} else {
+  df_geo_write <- df_geo_reverse }
+
+df_geo_write %>% 
+  group_by(poster, rent_num, lat, long) %>% 
+  arrange(desc(Date)) %>% 
+  slice(1) %>%  #remove reposts
+  write_csv("geo.csv")
+```
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
