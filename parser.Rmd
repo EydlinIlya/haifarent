@@ -118,7 +118,7 @@ date_start <- "07-Aug-2024"
 # mail encoding is a mess. It's not UTF-8 as it claims and i cant read it as html. Very dirty regex for parsing HTML therefore.
 # BEWARE. COULDNT BE UNSEEN
 regex_url <-"=Смотреть на Facebook\r\n(.*?)\r\n\r\n=="
-regex_text <- "Здравствуйте, Ilya!([\\s\\S]*?)\r\n\r\n\r\n\r\n=======================================Сообщение отправлено на адрес"
+regex_text <- "!([\\s\\S]*?)\r\n\r\n\r\n\r\n=======================================Сообщение отправлено на адрес"
 regex_name <- "опубликовал[а]{0,1}.(.*?)</a>[\\s\\S]{1,2}создал"
 regex_name2 <- "([^>]+$)"
 
