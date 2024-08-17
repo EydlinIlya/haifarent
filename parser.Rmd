@@ -133,7 +133,6 @@ str_promt <- paste("Take this facebook post in hebrew. extract the following dat
 
 con$reset_timeout_ms(30000)
 con$select_folder(name = mail_folder)
-con$reset_verbose(FALSE)
 messages <- con$search_since(date_char = date_start, use_uid = TRUE) 
 
 text <-  con$fetch_text(messages, use_uid = TRUE) %>% 
