@@ -148,9 +148,9 @@ df_messages <- tibble(text = text_vec, date = date_vec) %>%
          name = str_match(text, regex_name)[ ,2], 
          name = str_match(name, regex_name2)[ ,2], 
          text = str_match(text, regex_text)[ ,2]) %>% 
-  filter(!is.na(text) & text!="" & !is.na(name)) %>% 
+  # filter(!is.na(text) & text!="" & !is.na(name)) %>% 
   mutate(promt = paste(str_promt, text),
-         Date = as.Date(substr(date, 15, 25), format = "%d-%b-%Y")) %>% 
+         Date = as.Date(str_extract(date, "INTERNALDATE (.*?) "), format = 'INTERNALDATE "%d-%b-%Y ')) %>% 
   group_by(url) %>% 
   arrange(desc(Date)) %>% 
   slice(1)  # remove duplicates
@@ -168,15 +168,28 @@ con$move_msg(messages, use_uid = TRUE, to_folder = mail_folder_log)
 setAPI(Sys.getenv("GEMINI_KEY"))
 
 
-gem_response <- function(promt) {
-  Sys.sleep(6) # free quota allows 10 requests/min
+gem_response <- function(promt, sleep = 6) {
+  tryCatch({
+  Sys.sleep(sleep) # free quota allows 10 requests/min
   response <- gemini(promt)
+  },
+  error {
+    if (sleep > 30) {
+      print("API Error, abort")
+      break
+    }
+    sleep <- sleep + 10
+    print(paste("API Error, Wait", sleep, "seconds and try again"))
+    Sys.sleep(sleep)
+  }
+  )
 }
 
 
 df_messages_responses <- df_messages %>% 
   rowwise() %>% 
-  mutate(response = gem_response(promt)) %>% 
+  mutate(response = try(gem_response(promt), silent = T)) 
+df_messages_responses <- df_messages_responses %>% 
   mutate(json = str_match(response, "```json([\\s\\S]*?)```")[,2]) %>% #extract json from response 
   filter(!is.na(json)) %>% 
   mutate(json = list(try(fromJSON(json), silent = TRUE))) #try to convert json into r list (check if json is valid)
