@@ -37,7 +37,7 @@ sliderInput("rent", "Monthly Rent",
 checkboxInput("norent", "Show property without a rent", value = FALSE, width = NULL)
 
 dateRangeInput("date", "Date posted",
-            start = min(df_render$Date), end = max(df_render$Date))
+            start = Sys.Date()-7, end = Sys.Date())
 
 df_render_reactive <- reactive({
   req(input$rent)
